@@ -10,7 +10,7 @@ Color contrast and conversion tool
  - hslToHEX(hsl)
 
 ## colorUtil
- **Regular Expressions**
+  **Regular Expressions**
  - isHEX
  - isRGB
  - isHSL
