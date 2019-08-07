@@ -10,8 +10,7 @@ Color contrast and conversion tool
  - hslToHEX(hsl)
 
 ## colorUtil
- * **Regular Expressions**
-  - (isHEX, isRGB, isHSL)
+ * **Regular Expressions** (isHEX, isRGB, isHSL)
 
  * getContrast(colorA, colorB)
  
