@@ -10,7 +10,7 @@ Color contrast and conversion tool
  - hslToHEX(hsl)
 
 ## colorUtil
- * *Regular Expressions*
+ * **Regular Expressions**
  - isHEX
  - isRGB
  - isHSL
@@ -23,7 +23,7 @@ Color contrast and conversion tool
  
  
  ## colorObj()
-  * Takes a string value and returns an object containing:
+   *Takes a string value and returns an object containing:*
    - Default format (input value)
    - RGB value
    - HEX value
