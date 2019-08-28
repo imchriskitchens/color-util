@@ -1,170 +1,88 @@
 let colorArrays = ["#E5F2EE", "rgb(171, 223, 207)", "#78CBB4", "#4FB79D", "hsl(166, 53%, 41%)", "#1B9077", "#0C7C66", "#036855", "#005545", "#004136", "hsl(170, 100%, 8%)", "#001A15", "rgb(242, 229, 229)", "#F2C2C3", "#F0A0A1", "rgb(236, 127, 129)", "#E66467", "hsl(357, 68%, 58%)", "hsl(357, 61%, 51%)", "#BE2A31", "#A41E25", "#7F131A", "#500B10", "#1A0305", "#F2EAE5", "#EFCEBC", "#EAB293", "#E2986E", "#D8814F", "hsl(22, 57%, 50%)", "#B75D22", "#A04E14", "#843F0A", "#632F05", "#3E1F01", "#1A0D00", "hsl(38, 34%, 92%)", "#F0DBAE", "#E7C878", "rgb(217, 179, 72)", "#C49D21", "#AB8606", "hsl(47, 100%, 28%)", "#765E00", "#5C4A00", "#443700", "#2E2600", "hsl(48, 100%, 5%)", "#EDF2E3", "rgb(204, 235, 169)", "#99D971", "hsl(105, 53%, 51%)", "#2EB01E", "#069A08", "#008310", "#006D16", "#005817", "#004214", "#002E0F", "#001A09"];
 
 
+const to16 = (n) => parseInt(n, 10).toString(16);
+const expand = (n) => (n.length === 1) ? `0${n}` : n;
+
+const digits = (str) => str.match(/\d+/g);
+const minMax = (r, g, b) => [Math.min(r, g, b), Math.max(r, g, b)];
+
+
 const conversions = {
-  hexToRGB(hex) {
-    hex = +`0x${hex.replace("#", "")}`;
-    let r = (hex >> 16) & 255,
-      g = (hex >> 8) & 255,
-      b = hex & 255;
-    return `rgb(${r}, ${g}, ${b})`;
-  },
-
-  hexToHSL(hex) {
-    let [r, g, b] = [0, 0, 0];
-    if (hex.length == 4) {
-      r = "0x" + hex[1] + hex[1];
-      g = "0x" + hex[2] + hex[2];
-      b = "0x" + hex[3] + hex[3];
-    } else if (hex.length == 7) {
-      r = "0x" + hex[1] + hex[2];
-      g = "0x" + hex[3] + hex[4];
-      b = "0x" + hex[5] + hex[6];
-    }
-    r /= 255;
-    g /= 255;
-    b /= 255;
-    let cmin = Math.min(r, g, b),
-      cmax = Math.max(r, g, b),
-      delta = cmax - cmin;
-    let [h, s, l] = [0, 0, 0];
-    if (delta == 0) h = 0;
-    else if (cmax == r) h = ((g - b) / delta) % 6;
-    else if (cmax == g) h = (b - r) / delta + 2;
-    else h = (r - g) / delta + 4;
-    h = Math.round(h * 60);
-    if (h < 0) h += 360;
-    l = (cmax + cmin) / 2;
-    s = delta == 0 ? 0 : delta / (1 - Math.abs(2 * l - 1));
-    s = +(s * 100).toFixed(0);
-    l = +(l * 100).toFixed(0);
-    return `hsl(${h}, ${s}%, ${l}%)`;
-  },
-
   rgbToHEX(rgb) {
-    let [r, g, b] = rgb.match(/\d+/g);
-    r = parseInt(r, 10).toString(16);
-    g = parseInt(g, 10).toString(16);
-    b = parseInt(b, 10).toString(16);
-    r = r.length == 1 ? "0" + r : r;
-    g = g.length == 1 ? "0" + g : g;
-    b = b.length == 1 ? "0" + b : b;
+    let [r, g, b] = digits(rgb);
+  [r, g, b] = [r, g, b].map(to16);
+  [r, g, b] = [r, g, b].map(expand);
     return `#${r}${g}${b}`;
   },
 
   rgbToHSL(rgb) {
-    let [r, g, b] = rgb.match(/\d+/g);
-    r = r / 255;
-    g = g / 255;
-    b = b / 255;
-    let max = Math.max(r, g, b),
-      min = Math.min(r, g, b),
-      c = max - min;
-    let h = 0,
-      s = 0,
-      l = (max + min) / 2;
-    switch (max) {
-      case r:
-        h = ((g - b) / c) % 6;
-        break;
-      case g:
-        h = (b - r) / c + 2;
-        break;
-      case b:
-        h = (r - g) / c + 4;
-        break;
-    }
-    h = Math.round(h * 60);
-    h = h < 0 ? h + 360 : h;
-    s = c === 0 ? 0 : c / (1 - Math.abs(2 * l - 1));
-    s *= 100;
-    l *= 100;
-    return `hsl(${parseInt(h)}, ${parseInt(s)}%, ${parseInt(l)}%)`;
+    let [r, g, b] = digits(rgb).map((n) => n / 255);
+    let [min, max] = minMax(r, g, b);
+    let [hue, sat, lit, c] = Array(4).fill(0);
+
+    lit = (max + min) / 2;
+    c = max - min;
+
+    if (c !== 0) hue = (max === r) ? ((g - b) / c) % 6 :
+      (max === g) ? (b - r) / c + 2 :
+      (r - g) / c + 4; //(max === b)
+
+    hue *= 60;
+    if (hue < 0) hue += 360;
+    if (c !== 0) sat = (c) / (1 - Math.abs(max + min - 1));
+    sat *= 100;
+    lit *= 100;
+
+  [hue, sat, lit] = [hue, sat, lit].map((n) => parseInt(n));
+    return `hsl(${hue}, ${sat}%, ${lit}%)`;
   },
 
-  hslToRGB(hsl) {
-    let [h, s, l] = hsl.match(/\d+/g);
-    s = s / 100;
-    l = l / 100;
-    let c = (1 - Math.abs(2 * l - 1)) * s,
-      x = c * (1 - Math.abs((h / 60) % 2 - 1)),
-      m = l - c / 2,
-      r = 0,
-      g = 0,
-      b = 0;
-    if (0 <= h && h < 60) {
-      r = c;
-      g = x;
-      b = 0;
-    } else if (60 <= h && h < 120) {
-      r = x;
-      g = c;
-      b = 0;
-    } else if (120 <= h && h < 180) {
-      r = 0;
-      g = c;
-      b = x;
-    } else if (180 <= h && h < 240) {
-      r = 0;
-      g = x;
-      b = c;
-    } else if (240 <= h && h < 300) {
-      r = x;
-      g = 0;
-      b = c;
-    } else if (300 <= h && h < 360) {
-      r = c;
-      g = 0;
-      b = x;
-    }
-    r = Math.round(Math.abs((r + m) * 255));
-    g = Math.round(Math.abs((g + m) * 255));
-    b = Math.round(Math.abs((b + m) * 255));
+  hexToRGB(hex) {
+    hex = +`0x${hex.replace("#", "")}`;
+    let [r, g, b] = [(hex >> 16), (hex >> 8), hex].map((n) => n & 255);
     return `rgb(${r}, ${g}, ${b})`;
   },
 
+  hexToHSL(hex) {
+    hex = hexToRGB(hex);
+    return rgbToHSL(hex);
+  },
+
   hslToHEX(hsl) {
-    let [h, s, l] = hsl.match(/\d+/g);
-    s = s / 100;
-    l = l / 100;
-    let c = (1 - Math.abs(2 * l - 1)) * s,
-      x = c * (1 - Math.abs((h / 60) % 2 - 1)),
-      m = l - c / 2,
-      r = 0,
-      g = 0,
-      b = 0;
-    if (0 <= h && h < 60) {
-      r = c;
-      g = x;
-      b = 0;
-    } else if (60 <= h && h < 120) {
-      r = x;
-      g = c;
-      b = 0;
-    } else if (120 <= h && h < 180) {
-      r = 0;
-      g = c;
-      b = x;
-    } else if (180 <= h && h < 240) {
-      r = 0;
-      g = x;
-      b = c;
-    } else if (240 <= h && h < 300) {
-      r = x;
-      g = 0;
-      b = c;
-    } else if (300 <= h && h < 360) {
-      r = c;
-      g = 0;
-      b = x;
-    }
+    let [h, s, l] = digits(hsl);
+    s /= 100;
+    l /= 100;
+
+    let [c, x, m, r, g, b] = Array(6).fill(0);
+    c = (1 - Math.abs(2 * l - 1)) * s;
+    x = c * (1 - Math.abs((h / 60) % 2 - 1));
+    m = l - c / 2;
+
+    if (0 <= h && h < 60)
+      [r, g, b] = [c, x, 0];
+    else if (60 <= h && h < 120)
+      [r, g, b] = [x, c, 0];
+    else if (120 <= h && h < 180)
+      [r, g, b] = [0, c, x];
+    else if (180 <= h && h < 240)
+      [r, g, b] = [0, x, c];
+    else if (240 <= h && h < 300)
+      [r, g, b] = [x, 0, c];
+    else if (300 <= h && h < 360)
+      [r, g, b] = [c, 0, x];
+
     r = Math.round((r + m) * 255).toString(16);
     g = Math.round((g + m) * 255).toString(16);
     b = Math.round((b + m) * 255).toString(16);
-    if (r.length == 1) r = "0" + r;
-    if (g.length == 1) g = "0" + g;
-    if (b.length == 1) b = "0" + b;
+
+  [r, g, b] = [r, g, b].map(expand);
     return `#${r}${g}${b}`;
+  },
+
+  hslToRGB(hsl) {
+    let hex = hslToHEX(hsl);
+    return hexToRGB(hex);
   }
 }
 
@@ -226,10 +144,3 @@ const colorObj = (color) => {
 colorArrays.forEach(item => {
   console.log(colorObj(item));
 });
-
-
-
-
-
-
-//
