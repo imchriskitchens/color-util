@@ -1,30 +1,33 @@
 # color-util
 Color contrast and conversion tool
 
-## conversions: 
- - hexToRGB(hex)
- - hexToHSL(hex)
- - rgbToHEX(rgb)
- - rgbToHSL(rgb)
- - hslToRGB(hsl)
- - hslToHEX(hsl)
 
-## colorUtil
- * **Regular Expressions** (isHEX, isRGB, isHSL)
+- hexString( *rgb_object* )
+- rgbString( *rgb_object* )
+- hslString( *hsl_object* )
 
- * getContrast(colorA, colorB)
- 
- * getFormat(color)
-  - Format auto-detection using RegExp
-  - Automatically selects conversion functions to calculate missing values 
- 
- 
- ## colorObj()
-   *Takes a string value and returns an object containing:*
-   - Default format (input value)
-   - RGB value
-   - HEX value
-   - HSL value
-   - contrast ratios
-    - white text
-    - black text
+
+- hexToRGB( *hex_string* )
+- hexToHSL( *hex_string* )
+- rgbToHEX( *rgb_string* )
+- rgbToHSL( *rgb_string* )
+- hslToRGB( *hsl_string* )
+- hslToHEX( *hsl_string* )
+
+
+- getContrast( *rgb_string* , *rgb_string* )
+
+- getObjectArray( *array [ string_values ]* )
+
+- getColorObj( *string_value* )
+
+```javascript
+{
+  input: 'input_format',
+  rgb: 'rgb_string',
+  hex: 'hex_string',
+  hsl: 'hsl_string',
+  contrast: { black: 1.00, white: 21.00 }
+}
+```
+
