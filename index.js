@@ -118,15 +118,91 @@ const colorUtil = {
         white: Number(contrastW)
       }
     };
-  }
+  },
+
+  /* DEMO ARRAY FUNCTION */
+  demoArray(array, { demos_active } = false) {
+    if (demos_active) {
+      console.log("/**/");
+      ([...array, "/**/"]).forEach((value) => {
+        console.count("\n//", "demo"), console.log(value)
+      });
+    }
+  },
+
 };
 
 
 const colorArray = [null, "#E5F2EE", "rgb(171, 223, 207)", "#78CBB4", "#4FB79D", "hsl(166, 53%, 41%)", "#1B9077", "#0C7C66", "#036855", "#005545", "#004136", "hsl(170, 100%, 8%)", "#001A15", "rgb(242, 229, 229)", "#F2C2C3", "#F0A0A1", "rgb(236, 127, 129)", "#E66467", "hsl(357, 68%, 58%)", "hsl(357, 61%, 51%)", "#BE2A31", "#A41E25", "#7F131A", "#500B10", "#1A0305", "#F2EAE5", "#EFCEBC", "#EAB293", "#E2986E", "#D8814F", "hsl(22, 57%, 50%)", "#B75D22", "#A04E14", "#843F0A", "#632F05", "#3E1F01", "#1A0D00", "hsl(38, 34%, 92%)", "#F0DBAE", "#E7C878", "rgb(217, 179, 72)", "#C49D21", "#AB8606", "hsl(47, 100%, 28%)", "#765E00", "#5C4A00", "#443700", "#2E2600", "hsl(48, 100%, 5%)", "#EDF2E3", "rgb(204, 235, 169)", "#99D971", "hsl(105, 53%, 51%)", "#2EB01E", "#069A08", "#008310", "#006D16", "#005817", "#004214", "#002E0F", "#001A09"];
 
 
-const colorObjects = colorUtil.getColorObj(colorArray);
-console.log(colorObjects);
+
+
+const { hexToRGB, hexToHSL, rgbToHEX, rgbToHSL, hslToRGB, hslToHEX } = colorUtil;
+const { getContrast, getObjectArray, getColorObj, demoArray /*  */ } = colorUtil;
+
+demoArray([
+
+  getColorObj("#333"),
+  /* { input: 'HEX',
+      rgb: 'rgb(51, 51, 51)',
+      hex: '#333333',
+      hsl: 'hsl(0, 0%, 20%)',
+      contrast: { black: 1.66, white: 12.63 } } */
+
+  getColorObj("rgb(51, 51, 51)"),
+  /* { input: 'RGB',
+      rgb: 'rgb(51, 51, 51)',
+      hex: '#333333',
+      hsl: 'hsl(0, 0%, 20%)',
+      contrast: { black: 1.66, white: 12.63 } } */
+
+  getColorObj(hexToRGB("#333")),
+  /* { input: 'RGB',
+      rgb: 'rgb(51, 51, 51)',
+      hex: '#333333',
+      hsl: 'hsl(0, 0%, 20%)',
+      contrast: { black: 1.66, white: 12.63 } } */
+
+  getColorObj(rgbToHEX("rgb(51, 51, 51)")),
+  /* { input: 'HEX',
+      rgb: 'rgb(51, 51, 51)',
+      hex: '#333333',
+      hsl: 'hsl(0, 0%, 20%)',
+      contrast: { black: 1.66, white: 12.63 } } */
+
+
+  getContrast("rgb(0, 0, 0)", hexToRGB("#333")),
+  /* 1.66 */
+  getContrast("rgb(0, 0, 0)", "rgb(51, 51, 51)"),
+  /* 1.66 */
+  getContrast("rgb(0, 0, 0)", getColorObj("#333").rgb),
+  /* 1.66 */
+
+
+  getColorObj(["#222", "#111", "#000"])
+/* [ { input: 'HEX',
+    rgb: 'rgb(34, 34, 34)',
+    hex: '#222222',
+    hsl: 'hsl(0, 0%, 13%)',
+    contrast: { black: 1.32, white: 15.91 } },
+  { input: 'HEX',
+    rgb: 'rgb(17, 17, 17)',
+    hex: '#111111',
+    hsl: 'hsl(0, 0%, 6%)',
+    contrast: { black: 1.11, white: 18.88 } },
+  { input: 'HEX',
+    rgb: 'rgb(0, 0, 0)',
+    hex: '#000000',
+    hsl: 'hsl(0, 0%, 0%)',
+    contrast: { black: 1, white: 21 } } ] */
+
+], { demos_active: true })
+
+
+
+
+
 
 
 
