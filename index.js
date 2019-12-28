@@ -1,26 +1,62 @@
-// 
+const re = (function () {
+  const NUM = "(\\d{1,3})";
+  const PERCENT = "(\\d{1,3})%";
+  const _op = "[\\s|\\(]+";
+  const _cp = "\\s*\\)?";
+  const _cs = "[,|\\s]+";
+  return {
+    rgb: new RegExp("rgb" + _op + NUM + _cs + NUM + _cs + NUM + _cp),
+    hsl: new RegExp("hsl" + _op + NUM + _cs + PERCENT + _cs + PERCENT + _cp),
+    hex: /^#((?:[a-f\d]{2}|[a-f\d]{1}){3})$/i,
+    hex3: /([a-f\d]{1})/ig,
+    hex6: /([a-f\d]{2})/ig,
+    isHEX: ((v) => re.hex.test(v)),
+    isRGB: ((v) => re.rgb.test(v)),
+    isHSL: ((v) => re.hsl.test(v)),
+    hex3To6: ((ch) => `${ch}${ch}`),
+    safeSlice: ((v) => (!!v) ? v.slice(1) : v),
+    safeSliceF: ((v) => {
+      const format = ["rgb", "hsl"][+re.isHSL(v) | +re.isHEX(v)];
+      return !!(v = re[format].exec(v)) ?
+        v.slice(1).map((n) => +n) : [0, 0, 0];
+    }),
+  };
+})();
 
-const colorUtil = {
-  hexString({ r, g, b }) { return `#${r}${g}${b}` /**/ .toUpperCase() /**/ ; },
-  rgbString({ r, g, b }) { return `rgb(${r}, ${g}, ${b})`; },
-  hslString({ h, s, l }) { return `hsl(${h}, ${s}%, ${l}%)`; },
 
-  rgbToHEX(value, { data } = false) {
-    let [r, g, b] = value.match(/\d+/g);
+const colorUtil = (() => {
+  const hexString = ((value) => (Array.isArray(value)) ?
+    (([r, g, b]) => `#${r}${g}${b}`.toUpperCase())(value) :
+    (({ r, g, b }) => `#${r}${g}${b}`.toUpperCase())(value));
+  const rgbString = ((value) => (Array.isArray(value)) ?
+    (([r, g, b]) => `rgb(${r}, ${g}, ${b})`)(value) :
+    (({ r, g, b }) => `rgb(${r}, ${g}, ${b})`)(value));
+  const hslString = ((value) => (Array.isArray(value)) ?
+    (([h, s, l]) => `hsl(${h}, ${s}%, ${l}%)`)(value) :
+    (({ h, s, l }) => `hsl(${h}, ${s}%, ${l}%)`)(value));
+
+  const dataType = ((value, regex) => {
+    return (typeof value === "string") ? re.safeSliceF(value) :
+      (!!value && value.values) ? value.values : value;
+  });
+  const dataRGB = ((value) => dataType(value, re.rgb));
+  const dataHSL = ((value) => dataType(value, re.hsl));
+
+  const rgbToHEX = ((value) => {
+    let [r, g, b] = dataRGB(value);
     [r, g, b] = [r, g, b].map((n) => parseInt(n, 10).toString(16));
     [r, g, b] = [r, g, b].map((n) => n.length === 1 ? `0${n}` : n);
-    return (data) ? ([r, g, b]) : colorUtil.hexString({ r, g, b });
-  },
-
-  rgbToHSL(value) {
-    let [r, g, b] = (Array.isArray(value)) ? value: value.match(/\d+/g);
+    return hexString({ r, g, b });
+  });
+  const rgbToHSL = ((value) => {
+    let [r, g, b] = dataRGB(value);
     [r, g, b] = [r, g, b].map((v) => v / 255);
     let cmin = Math.min(r, g, b);
     let cmax = Math.max(r, g, b);
     let c = cmax - cmin;
     let [h, s, l] = [0, 0, (cmax + cmin) * 0.5];
     if (c !== 0) {
-      h = // condition hue value
+      h = // conditional hue value
         (cmax === r) ? ((g - b) / c) % 6 :
         (cmax === g) ? (b - r) / c + 2 :
         (r - g) / c + 4; // (cmax === b)
@@ -29,181 +65,200 @@ const colorUtil = {
     [h, s, l] = [h * 60, s * 100, l * 100];
     if (h < 0) h += 360; // neg hue correction
     [h, s, l] = [h, s, l].map((n) => parseInt(n));
-    return colorUtil.hslString({ h, s, l });
-  },
+    return hslString({ h, s, l });
+  });
 
-  hslToRGB(value, { data } = false) {
-    let [h, s, l] = value.match(/\d+/g);
+  const hslToRGB = ((value) => {
+    let [h, s, l] = dataHSL(value);
     [h, s, l] = [h / 60, s / 100, l / 100];
     let c = s * (1 - Math.abs(2 * l - 1));
     let x = c * (1 - Math.abs(h % 2 - 1));
     let m = l - c / 2;
     [c, x, m] = [(c + m), (x + m), m].map((v) => Math.round(v * 255));
-    [c, x, m] = [c, x, m].map((v) => (v < 1) ? 0 : v);
-    let [r, g, b] = [[c, x, m], [x, c, m], [m, c, x], [m, x, c], [x, m, c], [c, m, x]][Math.floor(h) % 6];
-    return (data) ? ([r, g, b]) : colorUtil.rgbString({ r, g, b });
-  },
-
-  hslToHEX(value, { data } = false) {
-    let [r, g, b] = colorUtil.hslToRGB(value, { data: true });
+    [c, x, m] = [c, x, m].map((v) => (v < 1) ? 0 : v); // NOTE: Math.round() => -0
+    let [r, g, b] = [
+      [c, x, m],
+      [x, c, m],
+      [m, c, x],
+      [m, x, c],
+      [x, m, c],
+      [c, m, x]
+    ][Math.floor(h) % 6];
+    return rgbString({ r, g, b });
+  });
+  const hslToHEX = ((value) => {
+    let [r, g, b] = dataRGB(hslToRGB(value));
     [r, g, b] = [r, g, b].map((n) => parseInt(n, 10).toString(16));
     [r, g, b] = [r, g, b].map((n) => n.length === 1 ? `0${n}` : n);
-    return (data) ? ([r, g, b]) : colorUtil.hexString({ r, g, b });
-  },
+    return hexString({ r, g, b });
+  });
 
-  hexToRGB(value, { data } = false) {
-    value = value.replace("#", "");
-    value = (value.length === 3) ? ("0x" + ([...value]).map((ch) =>
-      `${ch}${ch}`).join("")) : `0x${value}`;
-    const [r, g, b] = [(value >> 16), (value >> 8), value].map((n) => n & 255);
-    return (data) ? ([r, g, b]) : colorUtil.rgbString({ r, g, b });
-  },
+  const hexToRGB = ((value) => {
+    if (value.includes("#"))
+      value = value.replace("#", "");
+    if (value.length === 3)
+      value = ([...value]).map(re.hex3To6).join("");
+    value = ((v) => {
+      return ([v >> 16 & 0xff, v >> 8 & 0xff, v & 0xff]);
+    })("0x" + value);
+    return rgbString(value);
+  });
+  const hexToHSL = ((value) => {
+    value = dataRGB(hexToRGB(value));
+    return rgbToHSL(value);
+  });
 
-  hexToHSL(value) {
-    const [r, g, b] = colorUtil.hexToRGB(value, { data: true });
-    return colorUtil.rgbToHSL([r, g, b]);
-  },
+  const colorSplit = ((value) => {
+    const color = {};
 
-  getContrast(colorA, colorB) {
-    const lin_sRGB = (v) =>
-      (v < 0.04045) ? (v / 12.92) : ((v + 0.055) / 1.055) ** 2.4;
-    const LUM = (value) => {
-      let [r, g, b] = value.match(/\d+/g);
-      [r, g, b] = [r, g, b].map(v => lin_sRGB(v / 255));
-      [r, g, b] = [r * 0.2126, g * 0.7152, b * 0.0722];
-      return [r, g, b].reduce((a, b) => a + b);
-    }
-    const [L1, L2] = [LUM(colorA), LUM(colorB)];
-    const compare = (Math.max(L1, L2) + 0.05) / (Math.min(L1, L2) + 0.05);
-    return (compare != undefined) ?
-      compare.toPrecision((compare >= 10) ? 4 : 3) : (L1 === L2) ? 1 : 21;
-  },
+    ([{ format: "HEX", test: "isHEX" },
+      { format: "RGB", test: "isRGB" },
+      { format: "HSL", test: "isHSL" }
+    ]).forEach(({ format, test }) => {
 
-  getObjectArray(values) {
-    return values.filter((v) => !!v)
-      .map((v) => colorUtil.getColorObj(v));
-  },
-
-  getColorObj(value) {
-    if (Array.isArray(value)) {
-      return colorUtil.getObjectArray(value);
-    }
-
-    const isHEX = /(^#[0-9A-F]{6}$)|(^#[0-9A-F]{3}$)/i;
-    const isRGB = /^rgb\((\s*\d{1,3}\s*),(\s*\d{1,3}\s*),(\s*\d{1,3}\s*)\)$/i;
-    const isHSL = /^hsl\((\s*\d{1,3}\s*),(\s*\d{1,3}%\s*),(\s*\d{1,3}%\s*)\)$/i;
-
-    if (isHEX.test(value) && value.length < 6) {
-      value = "#" + ([...value.slice(1)])
-        .map((v) => `${v}${v}`).join("");
-    }
-
-    const { hexToRGB, hexToHSL, rgbToHEX, rgbToHSL, hslToRGB, hslToHEX } = colorUtil;
-
-    const [formatINPUT, formatRGB, formatHEX, formatHSL] =
-    (isHEX.test(value)) ? ['HEX', hexToRGB(value), value, hexToHSL(value)] :
-    (isRGB.test(value)) ? ['RGB', value, rgbToHEX(value), rgbToHSL(value)] :
-    (isHSL.test(value)) ? ['HSL', hslToRGB(value), hslToHEX(value), value] : "";
-
-    const contrastB = colorUtil.getContrast(formatRGB, "rgb(0,0,0)");
-    const contrastW = colorUtil.getContrast(formatRGB, "rgb(255,255,255)");
-
-    return {
-      input: formatINPUT,
-      rgb: formatRGB,
-      hex: formatHEX,
-      hsl: formatHSL,
-      contrast: {
-        black: Number(contrastB),
-        white: Number(contrastW)
+      if (re[test](value)) {
+        color.format = format;
+        if (color.format === "HEX") {
+          color.values = // hex3 or hex6
+            ((value.match(re.hex6).length < 3) ?
+              value.match(re.hex3).map(re.hex3To6) :
+              value.match(re.hex6)).join("");
+          color.hex = `#${color.values}`;
+          color.values = ((v) => [
+            v >> 16 & 0xff,
+            v >> 8 & 0xff,
+            v & 0xff
+          ])("0x" + color.values);
+        } else {
+          color.values = re.safeSliceF(value);
+        }
       }
-    };
-  },
+    });
 
-  /* DEMO ARRAY FUNCTION */
-  demoArray(array, { demos_active } = false) {
-    if (demos_active) {
-      console.log("/**/");
-      ([...array, "/**/"]).forEach((value) => {
-        console.count("\n//", "demo"), console.log(value)
+    return color;
+  });
+
+  const compSort = ((colors) => {
+    let [column_0, column_1, column_2, results] = [[], [], [], []];
+
+    colors = colors.map(({ values }) => values);
+    colors.forEach(([c0, c1, c2]) => {
+      column_0.push(c0);
+      column_1.push(c1);
+      column_2.push(c2);
+    });
+
+    column_0 = new Set(column_0.sort((a, b) => a - b));
+    column_1 = new Set(column_1.sort((a, b) => a - b));
+    column_2 = new Set(column_2.sort((a, b) => a - b));
+
+    ([...column_0]).forEach((item0) => {
+      const f0 = colors.filter(([v, , ]) => v === item0);
+      ([...column_1]).forEach((item1) => {
+        const f1 = f0.filter(([, v, ]) => v === item1);
+        ([...column_2]).forEach((item2) => {
+          const f2 = f1.filter(([, , v]) => v === item2);
+          if (!!f2) // NOTE: values that match all 3 filters
+            ([...f2]).forEach((value) => results.push(value));
+        });
       });
+    });
+    // 
+    return results;
+  });
+  const colorSort = ((colors) => {
+    const formats = {};
+
+    colors = ([...colors]).map((v) => colorSplit(v));
+
+    formats.hex = colors.filter((color) => color.format === "HEX");
+    formats.rgb = colors.filter((color) => color.format === "RGB");
+    formats.hsl = colors.filter((color) => color.format === "HSL");
+
+    formats.hex = compSort(formats.hex)
+      .map(([r, g, b]) => rgbToHEX([r, g, b]));
+    formats.rgb = compSort(formats.rgb)
+      .map(([r, g, b]) => rgbString([r, g, b]));
+    formats.hsl = compSort(formats.hsl)
+      .map(([h, s, l]) => hslString([h, s, l]));
+
+    return [...formats.hex, ...formats.rgb, ...formats.hsl].join("\n");
+  });
+
+  const getContrast = ((colorA, colorB) => {
+    if (!colorA) { return; }
+    if (!colorB) {
+      colorA = (re.isRGB(colorA)) ?
+        colorA : newColorObj(colorA).rgb;
+      if (!colorA || !re.isRGB(colorA)) return;
+      const black = getContrast(colorA, "rgb(0,0,0)");
+      const white = getContrast(colorA, "rgb(255,255,255)");
+      return { black, white };
     }
-  },
 
-};
+    if (re.isRGB(colorA) && re.isRGB(colorB)) {
+      const linear_sRGB = ((v) =>
+        (v < 0.04045) ? (v / 12.92) : ((v + 0.055) / 1.055) ** 2.4);
+      //
+      const [L1, L2] = [colorA, colorB].map((value) => {
+        let [r, g, b] = dataRGB(value).map((v) => linear_sRGB(v / 255));
+        return [(r * 0.2126) + (g * 0.7152) + (b * 0.0722)];
+      });
+      const C = (Math.max(L1, L2) + 0.05) / (Math.min(L1, L2) + 0.05);
+      return (!!C) ? +C.toPrecision((C >= 10) ? 4 : 3) : (L1 === L2) ? 1 : 21;
+    }
+  });
 
+  const newColorObj = ((color) => {
 
-const colorArray = [null, "#E5F2EE", "rgb(171, 223, 207)", "#78CBB4", "#4FB79D", "hsl(166, 53%, 41%)", "#1B9077", "#0C7C66", "#036855", "#005545", "#004136", "hsl(170, 100%, 8%)", "#001A15", "rgb(242, 229, 229)", "#F2C2C3", "#F0A0A1", "rgb(236, 127, 129)", "#E66467", "hsl(357, 68%, 58%)", "hsl(357, 61%, 51%)", "#BE2A31", "#A41E25", "#7F131A", "#500B10", "#1A0305", "#F2EAE5", "#EFCEBC", "#EAB293", "#E2986E", "#D8814F", "hsl(22, 57%, 50%)", "#B75D22", "#A04E14", "#843F0A", "#632F05", "#3E1F01", "#1A0D00", "hsl(38, 34%, 92%)", "#F0DBAE", "#E7C878", "rgb(217, 179, 72)", "#C49D21", "#AB8606", "hsl(47, 100%, 28%)", "#765E00", "#5C4A00", "#443700", "#2E2600", "hsl(48, 100%, 5%)", "#EDF2E3", "rgb(204, 235, 169)", "#99D971", "hsl(105, 53%, 51%)", "#2EB01E", "#069A08", "#008310", "#006D16", "#005817", "#004214", "#002E0F", "#001A09"];
+    if (!color) return newColorObj("#000");
+    if (Array.isArray(color)) {
+      return ((array) =>
+        ([...array].filter((v) => !!v))
+        .map((v) => newColorObj(v)))(color);
+    } else if (!color.format) color = colorSplit(color);
 
+    return (color.format === "HEX") ? {
+        hex: color.hex,
+        rgb: rgbString(color.values),
+        hsl: hexToHSL(color.values),
+        contrast: getContrast(rgbString(color.values))
+      } :
+      (color.format === "RGB") ? {
+        hex: rgbToHEX(color.values),
+        rgb: rgbString(color.values),
+        hsl: rgbToHSL(color.values),
+        contrast: getContrast(rgbString(color.values))
+      } :
+      (color.format === "HSL") ? {
+        hex: hslToHEX(color.values),
+        rgb: hslToRGB(color.values),
+        hsl: hslString(color.values),
+        contrast: getContrast(hslToRGB(color.values))
+      } : newColorObj("#000");
+  });
 
-
-
-const { hexToRGB, hexToHSL, rgbToHEX, rgbToHSL, hslToRGB, hslToHEX } = colorUtil;
-const { getContrast, getObjectArray, getColorObj, demoArray /*  */ } = colorUtil;
-
-demoArray([
-
-  getColorObj("#333"),
-  /* { input: 'HEX',
-      rgb: 'rgb(51, 51, 51)',
-      hex: '#333333',
-      hsl: 'hsl(0, 0%, 20%)',
-      contrast: { black: 1.66, white: 12.63 } } */
-
-  getColorObj("rgb(51, 51, 51)"),
-  /* { input: 'RGB',
-      rgb: 'rgb(51, 51, 51)',
-      hex: '#333333',
-      hsl: 'hsl(0, 0%, 20%)',
-      contrast: { black: 1.66, white: 12.63 } } */
-
-  getColorObj(hexToRGB("#333")),
-  /* { input: 'RGB',
-      rgb: 'rgb(51, 51, 51)',
-      hex: '#333333',
-      hsl: 'hsl(0, 0%, 20%)',
-      contrast: { black: 1.66, white: 12.63 } } */
-
-  getColorObj(rgbToHEX("rgb(51, 51, 51)")),
-  /* { input: 'HEX',
-      rgb: 'rgb(51, 51, 51)',
-      hex: '#333333',
-      hsl: 'hsl(0, 0%, 20%)',
-      contrast: { black: 1.66, white: 12.63 } } */
-
-
-  getContrast("rgb(0, 0, 0)", hexToRGB("#333")),
-  /* 1.66 */
-  getContrast("rgb(0, 0, 0)", "rgb(51, 51, 51)"),
-  /* 1.66 */
-  getContrast("rgb(0, 0, 0)", getColorObj("#333").rgb),
-  /* 1.66 */
+  return { colorSplit, colorSort, getContrast, newColorObj };
+})();
 
 
-  getColorObj(["#222", "#111", "#000"])
-/* [ { input: 'HEX',
-    rgb: 'rgb(34, 34, 34)',
-    hex: '#222222',
-    hsl: 'hsl(0, 0%, 13%)',
-    contrast: { black: 1.32, white: 15.91 } },
-  { input: 'HEX',
-    rgb: 'rgb(17, 17, 17)',
-    hex: '#111111',
-    hsl: 'hsl(0, 0%, 6%)',
-    contrast: { black: 1.11, white: 18.88 } },
-  { input: 'HEX',
-    rgb: 'rgb(0, 0, 0)',
-    hex: '#000000',
-    hsl: 'hsl(0, 0%, 0%)',
-    contrast: { black: 1, white: 21 } } ] */
+/* random color generator */
+const gen = (() => {
+  const rand = ((N = 255) => Math.floor(Math.random() * N));
 
-], { demos_active: true })
+  const hexLength = (() => [3, 6][rand() % 2]);
+  const textCase = ["toUpperCase", "toLowerCase"][rand() % 2];
+  const hexChar = (() => "0123456789ABCDEF".charAt(rand(16))[textCase]());
 
+  const randRGB = (() => `rgb(${rand()}, ${rand()}, ${rand()})`);
+  const randHSL = (() => `hsl(${rand(360)}, ${rand(100)}%, ${rand(100)}%)`);
+  const randHEX = (() => `#${Array.from({ length: hexLength() },  hexChar).join("")}`);
 
-
-
-
-
-
-
-//
+  const mapFunc = ((n, fn) => ([...",".repeat(n)]).map(fn));
+  const randArray = () => ([
+    ...mapFunc(12, (() => randHEX())),
+    ...mapFunc(6, (() => randRGB())),
+    ...mapFunc(6, (() => randHSL()))
+  ]);
+  return { randHEX, randRGB, randHSL, randArray };
+})();
