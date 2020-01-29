@@ -1,55 +1,65 @@
-const re = (function () {
-  const NUM = "(\\d{1,3})";
-  const PERCENT = "(\\d{1,3})%";
-  const _op = "[\\s|\\(]+";
-  const _cp = "\\s*\\)?";
-  const _cs = "[,|\\s]+";
-  return {
-    rgb: new RegExp("rgb" + _op + NUM + _cs + NUM + _cs + NUM + _cp),
-    hsl: new RegExp("hsl" + _op + NUM + _cs + PERCENT + _cs + PERCENT + _cp),
-    hex: /^#((?:[a-f\d]{2}|[a-f\d]{1}){3})$/i,
-    hex3: /([a-f\d]{1})/ig,
-    hex6: /([a-f\d]{2})/ig,
-    isHEX: ((v) => re.hex.test(v)),
-    isRGB: ((v) => re.rgb.test(v)),
-    isHSL: ((v) => re.hsl.test(v)),
-    hex3To6: ((ch) => `${ch}${ch}`),
-    safeSlice: ((v) => (!!v) ? v.slice(1) : v),
-    safeSliceF: ((v) => {
-      const format = ["rgb", "hsl"][+re.isHSL(v) | +re.isHEX(v)];
-      return !!(v = re[format].exec(v)) ?
-        v.slice(1).map((n) => +n) : [0, 0, 0];
-    }),
-  };
-})();
-
-
 const colorUtil = (() => {
-  const hexString = ((value) => (Array.isArray(value)) ?
-    (([r, g, b]) => `#${r}${g}${b}`.toUpperCase())(value) :
-    (({ r, g, b }) => `#${r}${g}${b}`.toUpperCase())(value));
-  const rgbString = ((value) => (Array.isArray(value)) ?
-    (([r, g, b]) => `rgb(${r}, ${g}, ${b})`)(value) :
-    (({ r, g, b }) => `rgb(${r}, ${g}, ${b})`)(value));
-  const hslString = ((value) => (Array.isArray(value)) ?
-    (([h, s, l]) => `hsl(${h}, ${s}%, ${l}%)`)(value) :
-    (({ h, s, l }) => `hsl(${h}, ${s}%, ${l}%)`)(value));
+  /************** PATTERN MATCHING **************/
+  const re = (() => {
+    const _op = "[\\s|\\(]+";
+    const _cp = "\\s*\\)?";
+    const _cs = "[,|\\s]+";
+    const NUM = "(\\d{1,3})";
+    const PERCENT = "(\\d{1,3})%";
+    const HEX_DIGIT = "(?:[a-f\\d])";
+    return ({
+      rgb: new RegExp("rgb" + _op + NUM + _cs + NUM + _cs + NUM + _cp),
+      hsl: new RegExp("hsl" + _op + NUM + _cs + PERCENT + _cs + PERCENT + _cp),
+      hex: new RegExp("^#((?:" + HEX_DIGIT + "{2}|" + HEX_DIGIT + "{1}){3})$", "i"),
+      hex3: new RegExp("(" + HEX_DIGIT + "{1})", "ig"),
+      hex6: new RegExp("(" + HEX_DIGIT + "{2})", "ig"),
+    });
+  })();
 
-  const dataType = ((value, regex) => {
-    return (typeof value === "string") ? re.safeSliceF(value) :
-      (!!value && value.values) ? value.values : value;
+  const isHEX = ((v) => re.hex.test(v));
+  const isRGB = ((v) => re.rgb.test(v));
+  const isHSL = ((v) => re.hsl.test(v));
+
+  const matchFormat = ((val, fmt) => {
+    fmt = fmt.toLowerCase();
+    val = val.match(re[fmt]);
+    return (!!val) ? (
+      val.slice(1)
+      .map((n) => +n)
+    ) : false;
   });
-  const dataRGB = ((value) => dataType(value, re.rgb));
-  const dataHSL = ((value) => dataType(value, re.hsl));
+
+  /************* MISC TOOLS & UTILS *************/
+  const hexToDecimal = ((v) => ([
+    v >> 16 & 0xFF,
+    v >> 8 & 0xFF,
+    v & 0xFF,
+  ]));
+
+  const doubleChar = ((c) => `${c}${c}`);
+  const rgbString = (([r, g, b]) => `rgb(${r}, ${g}, ${b})`);
+  const hslString = (([h, s, l]) => `hsl(${h}, ${s}%, ${l}%)`);
+
+  /******************** CONVERSIONS ********************/
+  const dataType = ((value) => (
+    (isRGB(value)) ? matchFormat(value, "RGB") :
+    (isHSL(value)) ? matchFormat(value, "HSL") :
+    (isHEX(value)) ? matchFormat(value, "HEX") :
+    (Array.isArray(value)) ? ([...value]) : value));
 
   const rgbToHEX = ((value) => {
-    let [r, g, b] = dataRGB(value);
-    [r, g, b] = [r, g, b].map((n) => parseInt(n, 10).toString(16));
-    [r, g, b] = [r, g, b].map((n) => n.length === 1 ? `0${n}` : n);
-    return hexString({ r, g, b });
+    value = dataType(value);
+    return "#" + (
+      [...new Uint8ClampedArray(value)]
+      .map((n) => (n & 0xFF).toString(16))
+      .map((n) => (n.length < 2) ? "0" + n : n)
+      .map((v) => (typeof v === "string") ? v.replace("0x", "") : v)
+      .join("")
+    ).toUpperCase();
   });
+
   const rgbToHSL = ((value) => {
-    let [r, g, b] = dataRGB(value);
+    let [r, g, b] = dataType(value);
     [r, g, b] = [r, g, b].map((v) => v / 255);
     let cmin = Math.min(r, g, b);
     let cmax = Math.max(r, g, b);
@@ -65,11 +75,11 @@ const colorUtil = (() => {
     [h, s, l] = [h * 60, s * 100, l * 100];
     if (h < 0) h += 360; // neg hue correction
     [h, s, l] = [h, s, l].map((n) => parseInt(n));
-    return hslString({ h, s, l });
+    return hslString([h, s, l]);
   });
 
   const hslToRGB = ((value) => {
-    let [h, s, l] = dataHSL(value);
+    let [h, s, l] = dataType(value);
     [h, s, l] = [h / 60, s / 100, l / 100];
     let c = s * (1 - Math.abs(2 * l - 1));
     let x = c * (1 - Math.abs(h % 2 - 1));
@@ -84,53 +94,59 @@ const colorUtil = (() => {
       [x, m, c],
       [c, m, x]
     ][Math.floor(h) % 6];
-    return rgbString({ r, g, b });
+    return rgbString([r, g, b]);
   });
+
   const hslToHEX = ((value) => {
-    let [r, g, b] = dataRGB(hslToRGB(value));
-    [r, g, b] = [r, g, b].map((n) => parseInt(n, 10).toString(16));
-    [r, g, b] = [r, g, b].map((n) => n.length === 1 ? `0${n}` : n);
-    return hexString({ r, g, b });
+    value = hslToRGB(value);
+    value = dataType(value);
+    return rgbToHEX(value);
   });
 
   const hexToRGB = ((value) => {
     if (value.includes("#"))
       value = value.replace("#", "");
-    if (value.length === 3)
-      value = ([...value]).map(re.hex3To6).join("");
-    value = ((v) => {
-      return ([v >> 16 & 0xff, v >> 8 & 0xff, v & 0xff]);
-    })("0x" + value);
+    if (value.length < 6)
+      value = ([...value].map(doubleChar).join(""));
+    value = hexToDecimal("0x" + value);
     return rgbString(value);
   });
+
   const hexToHSL = ((value) => {
-    value = dataRGB(hexToRGB(value));
+    value = hexToRGB(value);
+    value = dataType(value);
     return rgbToHSL(value);
   });
 
+  /********** COLOR FORMAT & COMPONENT SORTING **********/
   const colorSplit = ((value) => {
     const color = {};
 
-    ([{ format: "HEX", test: "isHEX" },
-      { format: "RGB", test: "isRGB" },
-      { format: "HSL", test: "isHSL" }
-    ]).forEach(({ format, test }) => {
+    ([ ///* VALID FORMATS */
+      { format: "HEX", isValid: isHEX(value) },
+      { format: "RGB", isValid: isRGB(value) },
+      { format: "HSL", isValid: isHSL(value) }
+    ]).forEach(({ format, isValid }) => {
 
-      if (re[test](value)) {
+      if (isValid) { // COLOR FORMAT
         color.format = format;
-        if (color.format === "HEX") {
-          color.values = // hex3 or hex6
-            ((value.match(re.hex6).length < 3) ?
-              value.match(re.hex3).map(re.hex3To6) :
-              value.match(re.hex6)).join("");
-          color.hex = `#${color.values}`;
-          color.values = ((v) => [
-            v >> 16 & 0xff,
-            v >> 8 & 0xff,
-            v & 0xff
-          ])("0x" + color.values);
+
+        if (format === "HEX") {
+          value = (
+            (value.length < 6) ?
+            value.match(re.hex3).map(doubleChar) :
+            value.match(re.hex6)
+          ).join("");
+
+          color.hex = ("#" + value);
+          [color.r, color.g, color.b] = hexToDecimal("0x" + value);
         } else {
-          color.values = re.safeSliceF(value);
+          value = matchFormat(value, format);
+
+          if (format === "HSL")
+            [color.h, color.s, color.l] = value;
+          if (format === "RGB")
+            [color.r, color.g, color.b] = value;
         }
       }
     });
@@ -139,34 +155,48 @@ const colorUtil = (() => {
   });
 
   const compSort = ((colors) => {
-    let [column_0, column_1, column_2, results] = [[], [], [], []];
+    let [results, column_0, column_1, column_2] = [[], [], [], []];
 
-    colors = colors.map(({ values }) => values);
-    colors.forEach(([c0, c1, c2]) => {
-      column_0.push(c0);
-      column_1.push(c1);
-      column_2.push(c2);
+    colors = colors.map((c) => {
+      if (c.format === "RGB" || c.format === "HEX") {
+        column_0.push(c.r);
+        column_1.push(c.g);
+        column_2.push(c.b);
+        return [c.r, c.g, c.b];
+      }
+      if (c.format === "HSL") {
+        column_0.push(c.h);
+        column_1.push(c.s);
+        column_2.push(c.l);
+        return [c.h, c.s, c.l];
+      }
     });
 
     column_0 = new Set(column_0.sort((a, b) => a - b));
     column_1 = new Set(column_1.sort((a, b) => a - b));
     column_2 = new Set(column_2.sort((a, b) => a - b));
 
-    ([...column_0]).forEach((item0) => {
-      const f0 = colors.filter(([v, , ]) => v === item0);
-      ([...column_1]).forEach((item1) => {
-        const f1 = f0.filter(([, v, ]) => v === item1);
-        ([...column_2]).forEach((item2) => {
-          const f2 = f1.filter(([, , v]) => v === item2);
-          if (!!f2) // NOTE: values that match all 3 filters
-            ([...f2]).forEach((value) => results.push(value));
+    [...column_0].forEach((v0) => {
+      const first = colors.filter(([x, , ]) => x === v0);
+      [...column_1].forEach((v1) => {
+        const second = first.filter(([, y, ]) => y === v1);
+        [...column_2].forEach((v2) => {
+          const third = second.filter(([, , z]) => z === v2);
+          if (!!third) // NOTE: values that match all 3 filters
+            third.forEach((value) => results.push(value));
         });
       });
     });
     // 
     return results;
   });
+
   const colorSort = ((colors) => {
+    if (!Array.isArray(colors)) {
+      console.log(`colorSort() expects an array of colors but recieved: { value: "${colors}", type: "${typeof colors}" }`);
+      return colors;
+    }
+
     const formats = {};
 
     colors = ([...colors]).map((v) => colorSplit(v));
@@ -185,80 +215,161 @@ const colorUtil = (() => {
     return [...formats.hex, ...formats.rgb, ...formats.hsl].join("\n");
   });
 
+  /********************** CONTRAST **********************/
   const getContrast = ((colorA, colorB) => {
-    if (!colorA) { return; }
+    if (Array.isArray(colorA)) {
+      return colorA.map(getContrast);
+    } else if (!colorA) { return; }
+    if (colorA && !isRGB(colorA)) {
+      colorA = (newColorObj(colorA).rgb);
+    } else if (!colorA || !isRGB(colorA)) { return; }
     if (!colorB) {
-      colorA = (re.isRGB(colorA)) ?
-        colorA : newColorObj(colorA).rgb;
-      if (!colorA || !re.isRGB(colorA)) return;
       const black = getContrast(colorA, "rgb(0,0,0)");
       const white = getContrast(colorA, "rgb(255,255,255)");
       return { black, white };
     }
 
-    if (re.isRGB(colorA) && re.isRGB(colorB)) {
-      const linear_sRGB = ((v) =>
-        (v < 0.04045) ? (v / 12.92) : ((v + 0.055) / 1.055) ** 2.4);
-      //
-      const [L1, L2] = [colorA, colorB].map((value) => {
-        let [r, g, b] = dataRGB(value).map((v) => linear_sRGB(v / 255));
+    if (isRGB(colorA) && isRGB(colorB)) {
+      const [L1, L2] = ([colorA, colorB]).map((value) => {
+        const [r, g, b] = (
+          dataType(value)
+          .map((v) => v / 255)
+          .map((v) => (
+            (v < 0.04045) ?
+            (v / 12.92) :
+            ((v + 0.055) / 1.055) ** 2.4)));
         return [(r * 0.2126) + (g * 0.7152) + (b * 0.0722)];
       });
+
       const C = (Math.max(L1, L2) + 0.05) / (Math.min(L1, L2) + 0.05);
       return (!!C) ? +C.toPrecision((C >= 10) ? 4 : 3) : (L1 === L2) ? 1 : 21;
     }
   });
 
+  /********************** FACTORY **********************/
   const newColorObj = ((color) => {
+    const fallback = {
+      hex: '#000000',
+      rgb: 'rgb(0, 0, 0)',
+      hsl: 'hsl(0, 0%, 0%)',
+      contrast: { black: 1, white: 21 }
+    };
 
-    if (!color) return newColorObj("#000");
+    if (!color) return fallback;
     if (Array.isArray(color)) {
       return ((array) =>
         ([...array].filter((v) => !!v))
         .map((v) => newColorObj(v)))(color);
-    } else if (!color.format) color = colorSplit(color);
+    } else if (!color.format) {
+      color = colorSplit(color);
+    }
 
-    return (color.format === "HEX") ? {
+    return (
+      (color.format === "HEX") ? {
         hex: color.hex,
-        rgb: rgbString(color.values),
-        hsl: hexToHSL(color.values),
-        contrast: getContrast(rgbString(color.values))
+        rgb: rgbString([color.r, color.g, color.b]),
+        hsl: rgbToHSL([color.r, color.g, color.b]),
+        contrast: getContrast(rgbString([color.r, color.g, color.b]))
       } :
       (color.format === "RGB") ? {
-        hex: rgbToHEX(color.values),
-        rgb: rgbString(color.values),
-        hsl: rgbToHSL(color.values),
-        contrast: getContrast(rgbString(color.values))
+        hex: rgbToHEX([color.r, color.g, color.b]),
+        rgb: rgbString([color.r, color.g, color.b]),
+        hsl: rgbToHSL([color.r, color.g, color.b]),
+        contrast: getContrast(rgbString([color.r, color.g, color.b]))
       } :
       (color.format === "HSL") ? {
-        hex: hslToHEX(color.values),
-        rgb: hslToRGB(color.values),
-        hsl: hslString(color.values),
-        contrast: getContrast(hslToRGB(color.values))
-      } : newColorObj("#000");
+        hex: hslToHEX([color.h, color.s, color.l]),
+        rgb: hslToRGB([color.h, color.s, color.l]),
+        hsl: hslString([color.h, color.s, color.l]),
+        contrast: getContrast(hslToRGB([color.h, color.s, color.l]))
+      } : fallback
+    );
   });
 
-  return { colorSplit, colorSort, getContrast, newColorObj };
+
+  return {
+    isHEX,
+    isRGB,
+    isHSL,
+    rgbToHEX,
+    rgbToHSL,
+    hslToRGB,
+    hslToHEX,
+    hexToRGB,
+    hexToHSL,
+    colorSplit,
+    colorSort,
+    getContrast,
+    newColorObj
+  };
 })();
 
 
-/* random color generator */
-const gen = (() => {
-  const rand = ((N = 255) => Math.floor(Math.random() * N));
 
-  const hexLength = (() => [3, 6][rand() % 2]);
-  const textCase = ["toUpperCase", "toLowerCase"][rand() % 2];
-  const hexChar = (() => "0123456789ABCDEF".charAt(rand(16))[textCase]());
+const testColors = ([
+  "#DDA",
+  "#31595B",
+  "#B0D8F0",
+  "#ED6",
+  "#EDAF10",
+  "#0A8835",
+  "#B31217",
+  "#3B1592",
+  "#5ADAE9",
+  "#D3A",
+  "#0DBE7A",
+  "#38BF7D",
+  "#D0B",
+  "#FDDD90",
+  "#0C1",
+  "#25E047",
+  "rgb(92, 31, 57)",
+  "rgb(51, 35, 13)",
+  "rgb(249, 220, 89)",
+  "rgb(74, 203, 205)",
+  "rgb(81, 71, 88)",
+  "rgb(4, 203, 210)",
+  "rgb(161, 94, 239)",
+  "rgb(197, 89, 136)",
+  "rgb(209, 61, 194)",
+  "rgb(10, 22, 241)",
+  "rgb(104, 212, 70)",
+  "rgb(180, 39, 67)",
+  "rgb(23, 3, 210)",
+  "rgb(233, 77, 178)",
+  "rgb(237, 247, 188)",
+  "rgb(222, 238, 243)",
+  "rgb(92, 56, 76)",
+  "rgb(100, 89, 98)",
+  "hsl(232, 13%, 23%)",
+  "hsl(220, 73%, 7%)",
+  "hsl(303, 14%, 58%)",
+  "hsl(31, 50%, 30%)",
+  "hsl(2, 75%, 10%)",
+  "hsl(227, 77%, 42%)",
+  "hsl(10, 63%, 12%)",
+  "hsl(233, 32%, 82%)",
+  "hsl(73, 61%, 35%)",
+  "hsl(36, 29%, 97%)",
+  "hsl(81, 93%, 84%)",
+  "hsl(4, 26%, 72%)"
+]);
 
-  const randRGB = (() => `rgb(${rand()}, ${rand()}, ${rand()})`);
-  const randHSL = (() => `hsl(${rand(360)}, ${rand(100)}%, ${rand(100)}%)`);
-  const randHEX = (() => `#${Array.from({ length: hexLength() },  hexChar).join("")}`);
+// console.log(colorUtil.colorSort(testColors));
 
-  const mapFunc = ((n, fn) => ([...",".repeat(n)]).map(fn));
-  const randArray = () => ([
-    ...mapFunc(12, (() => randHEX())),
-    ...mapFunc(6, (() => randRGB())),
-    ...mapFunc(6, (() => randHSL()))
-  ]);
-  return { randHEX, randRGB, randHSL, randArray };
-})();
+testColors.forEach((v) => {
+  // console.log(colorUtil.getContrast(v));
+  console.log(colorUtil.newColorObj(v));
+  /* if (colorUtil.isHEX(v)) {
+    console.log(colorUtil.hexToHSL(v));
+    console.log(colorUtil.hexToRGB(v));
+  } */
+  /* if (colorUtil.isRGB(v)) {
+    console.log(colorUtil.rgbToHEX(v));
+    console.log(colorUtil.rgbToHSL(v));
+  } */
+  /* if (colorUtil.isHSL(v)) {
+    console.log(colorUtil.hslToHEX(v));
+    console.log(colorUtil.hslToRGB(v));
+  } */
+})
